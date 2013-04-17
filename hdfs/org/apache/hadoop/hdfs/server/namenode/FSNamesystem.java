@@ -49,6 +49,8 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.Map.Entry;
 import java.util.concurrent.TimeUnit;
+import java.util.PriorityQueue;
+import java.util.Comparator;
 
 import javax.management.NotCompliantMBeanException;
 import javax.management.ObjectName;
@@ -290,7 +292,25 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
   public Daemon replthread = null;  // Replication thread
   private ReplicationMonitor replmon = null; // Replication metrics
   
-  private volatile boolean fsRunning = true;
+    private Daemon balthread = null; //ROSHAN Balancer thread
+    private PriorityQueue<DatanodeDescriptor> dataNodesSortedByCapacity = new PriorityQueue<DatanodeDescriptor> (5, 
+                                                                 new Comparator<DatanodeDescriptor>(){
+                                                                     public int compare(DatanodeDescriptor dn1,
+                                                                                        DatanodeDescriptor dn2){
+                                                                         double u1 = (double)dn1.getDfsUsed()/dn1.getCapacity();
+                                                                         double u2 = (double)dn2.getDfsUsed()/dn2.getCapacity();
+									 //System.out.println("ROSHAN comparator "+u1 + " u2: "+u2);
+                                                                         int ret = 0;
+                                                                         double diff = u2 - u1;
+                                                                         if(diff > 0 ){
+                                                                             ret = 1;
+                                                                         }else if(diff < 0){
+                                                                             ret = -1;
+                                                                         }
+                                                                         return ret; //Descending order
+                                                                     }
+                                                                 }); // ROSHAN list of dataNodes sorted
+    private volatile boolean fsRunning = true;
   long systemStart = 0;
 
   //  The maximum number of replicates we should allow for a single block
@@ -2644,12 +2664,19 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
       capacityUsed += node.getDfsUsed();
       capacityRemaining += node.getRemaining();
       totalLoad += node.getXceiverCount();
+      dataNodesSortedByCapacity.add(node);
     } else {
       capacityTotal -= node.getCapacity();
       capacityUsed -= node.getDfsUsed();
       capacityRemaining -= node.getRemaining();
       totalLoad -= node.getXceiverCount();
+      dataNodesSortedByCapacity.remove(node);
     }
+    System.out.print("ROSHAN datanodes are: ");
+    for(DatanodeDescriptor dn:dataNodesSortedByCapacity){
+        System.out.print(dn.getStorageID() + "->" + (double)dn.getDfsUsed()/dn.getCapacity()+ "; ");
+    }
+    System.out.println("");
   }
 
   /**
