@@ -361,4 +361,8 @@ public class DatanodeInfo extends DatanodeID implements Node {
     this.hostName = Text.readString(in);
     setAdminState(WritableUtils.readEnum(in, AdminStates.class));
   }
+
+  public double getScore() {
+	return (0.8 * getDfsUsedPercent()) + (0.2 * getXceiverCount());
+  }
 }

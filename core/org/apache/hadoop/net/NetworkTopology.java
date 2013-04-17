@@ -48,6 +48,8 @@ public class NetworkTopology {
   private class InnerNode extends NodeBase {
     private ArrayList<Node> children=new ArrayList<Node>();
     private int numOfLeaves;
+    
+    private ArrayList<Integer> sortedIndexList = new ArrayList<Integer>();
         
     /** Construct an InnerNode from a path-like string */
     InnerNode(String path) {
@@ -63,6 +65,23 @@ public class NetworkTopology {
      * from its name, its network location, its parent, and its level */
     InnerNode(String name, String location, InnerNode parent, int level) {
       super(name, location, parent, level);
+    }
+
+    /** Reorder the list of nodes according to their score */
+    public void reorderList() {
+	sortedIndexList = new ArrayList<Integer>();
+
+	for(int i=0;i<children.size();i++) {
+		double value = ((Node)children.get(i)).getScore();
+		int j;
+		for(j=0;j<sortedIndexList.size();j++) {
+			if(value > ((Node)children.get(((Integer)sortedIndexList.get(j)).intValue())).getScore())
+				break;
+		}
+
+		sortedIndexList.add(j,i);
+ 
+	}
     }
         
     /** Get its children */
