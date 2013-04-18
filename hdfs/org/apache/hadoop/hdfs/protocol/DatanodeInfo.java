@@ -363,6 +363,6 @@ public class DatanodeInfo extends DatanodeID implements Node {
   }
 
   public double getScore() {
-	return (0.8 * getDfsUsedPercent()) + (0.2 * getXceiverCount());
+	return (0.8 * (100-getDfsUsedPercent())) + (0.2 * getXceiverCount());
   }
 }
