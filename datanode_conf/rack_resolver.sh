@@ -15,7 +15,8 @@ while [ $# -gt 0 ] ; do
   #port=${var[1]}
   ip_arr=$(echo $ip | awk -F"." '{print $4}') 
   shift 
-  if  isEven ${ip_arr} -eq 0 && isEven ${port} -eq 0; then
+#  if  isEven ${ip_arr} -eq 0 && isEven ${port} -eq 0; then
+  if isEven ${port} -eq 0; then
       echo -n "/rack1"
   else
       echo -n "/rack2"

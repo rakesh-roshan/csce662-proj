@@ -199,7 +199,7 @@
     long nonDFS = fsn.getCapacityUsedNonDFS();
     float percentUsed = fsn.getCapacityUsedPercent();
     float percentRemaining = fsn.getCapacityRemainingPercent();
-
+    long racks = fsn.getRackCount();
     out.print( "<div id=\"dfstable\"> <table>\n" +
 	       rowTxt() + colTxt() + "Configured Capacity" + colTxt() + ":" + colTxt() +
 	       StringUtils.byteDesc( total ) +
@@ -222,6 +222,9 @@
 				+ "<a href=\"dfsnodelist.jsp?whatNodes=DECOMMISSIONING\">"
 				+ "Decommissioning Nodes</a> "
 				+ colTxt() + ":" + colTxt() + decommissioning.size()
+				+ rowTxt() + colTxt()
+				+ "Number of Racks" + colTxt() + ":" + colTxt()
+				+ racks
 				+ rowTxt() + colTxt()
 				+ "Number of Under-Replicated Blocks" + colTxt() + ":" + colTxt()
 				+ fsn.getUnderReplicatedBlocks()
