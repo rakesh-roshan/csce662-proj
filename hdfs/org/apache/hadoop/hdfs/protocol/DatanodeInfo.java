@@ -45,6 +45,8 @@ public class DatanodeInfo extends DatanodeID implements Node {
   protected int xceiverCount;
   protected String location = NetworkTopology.DEFAULT_RACK;
 
+  protected double score;
+
   /** HostName as suplied by the datanode during registration as its 
    * name. Namenode uses datanode IP address as the name.
    */
@@ -70,6 +72,7 @@ public class DatanodeInfo extends DatanodeID implements Node {
     this.location = from.getNetworkLocation();
     this.adminState = from.adminState;
     this.hostName = from.hostName;
+    this.score = 0.0;
   }
 
   public DatanodeInfo(DatanodeID nodeID) {
@@ -80,12 +83,14 @@ public class DatanodeInfo extends DatanodeID implements Node {
     this.lastUpdate = 0L;
     this.xceiverCount = 0;
     this.adminState = null;    
+    this.score = 0.0;
   }
   
   protected DatanodeInfo(DatanodeID nodeID, String location, String hostName) {
     this(nodeID);
     this.location = location;
     this.hostName = hostName;
+    this.score = 0.0;
   }
   
   /** Constructor */
@@ -105,6 +110,7 @@ public class DatanodeInfo extends DatanodeID implements Node {
     this.location = networkLocation;
     this.hostName = hostName;
     this.adminState = adminState;
+    this.score = 0.0;
   }
 
   /** The raw capacity. */
@@ -362,7 +368,14 @@ public class DatanodeInfo extends DatanodeID implements Node {
     setAdminState(WritableUtils.readEnum(in, AdminStates.class));
   }
 
+  public void setScore(double score) {
+     this.score = score;
+  }
+
   public double getScore() {
-	return (0.8 * (100-getDfsUsedPercent())) + (0.2 * getXceiverCount());
+	return score; 
+  }
+
+  public void reset() {
   }
 }

@@ -46,4 +46,5 @@ public interface Node {
   public void setLevel(int i);
 
   public double getScore();
+  public void reset();
 }

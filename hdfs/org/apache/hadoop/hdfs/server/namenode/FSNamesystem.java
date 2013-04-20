@@ -2589,6 +2589,25 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
 
         updateStats(nodeinfo, false);
         nodeinfo.updateHeartbeat(capacity, dfsUsed, remaining, xceiverCount);
+
+	double capacityScore;
+        if (capacity <= 0) {
+      		capacityScore = 0;
+    	}
+
+    	else 
+		capacityScore = ((double)remaining * 100.0f)/(float)capacity;
+	
+	double avgLoad = 0;
+        int size = clusterMap.getNumOfLeaves();
+        if (size != 0) {
+           avgLoad = (double)getTotalLoad()/size;
+        }
+
+	double loadScore = (avgLoad - xceiverCount)/getTotalLoad();
+
+	nodeinfo.setScore((0.8*capacityScore) + (0.2*loadScore)); 
+	System.out.println("---Aveek----- Node score for node " + nodeinfo.getName() + " is " + nodeinfo.getScore());
         updateStats(nodeinfo, true);
         
         //check lease recovery

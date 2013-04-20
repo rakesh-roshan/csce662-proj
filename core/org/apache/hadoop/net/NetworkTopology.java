@@ -48,25 +48,31 @@ public class NetworkTopology {
   private class InnerNode extends NodeBase {
     private ArrayList<Node> children=new ArrayList<Node>();
     private int numOfLeaves;
-    
-    private ArrayList<Integer> sortedIndexList = new ArrayList<Integer>();
+    private double score;   
+    private boolean reset; 
         
     /** Construct an InnerNode from a path-like string */
     InnerNode(String path) {
       super(path);
+      reset = true;
     }
         
     /** Construct an InnerNode from its name and its network location */
     InnerNode(String name, String location) {
       super(name, location);
+      reset = true;
     }
         
     /** Construct an InnerNode
      * from its name, its network location, its parent, and its level */
     InnerNode(String name, String location, InnerNode parent, int level) {
       super(name, location, parent, level);
+      reset = true;
     }
 
+    // TODO priority queue
+    // TODO add API for update. Call from FSNameSystem
+    private ArrayList<Integer> sortedIndexList = new ArrayList<Integer>();
     /** Reorder the list of nodes according to their score */
     public void reorderList() {
 	sortedIndexList = new ArrayList<Integer>();
@@ -78,10 +84,32 @@ public class NetworkTopology {
 			if(value > ((Node)children.get(((Integer)sortedIndexList.get(j)).intValue())).getScore())
 				break;
 		}
-
 		sortedIndexList.add(j,i);
- 
 	}
+    }
+
+    public double getScore() {
+	if(children.size() == 0)
+	  return 0;
+  
+ 	if(reset) {
+		score = 0;
+		for(int i=0;i<children.size();i++) {
+			score += ((Node)children.get(i)).getScore();
+		}
+
+		reset = false;
+		score = score / children.size();
+	}
+	return score;
+    }
+
+    public void reset() {
+        reset = true;
+    }
+
+    public boolean isReset() {
+	return reset;
     }
         
     /** Get its children */
@@ -179,8 +207,8 @@ public class NetworkTopology {
         if (parentNode == null) {
           // create a new InnerNode
           parentNode = new InnerNode(parentName, getPath(this),
-                                     this, this.getLevel()+1);
-          children.add(parentNode);
+					this, this.getLevel()+1);
+	  children.add(parentNode);
         }
         // add n to the subtree of the next ancestor node
         if (parentNode.add(n)) {
@@ -307,6 +335,26 @@ public class NetworkTopology {
         }
         return null;
       }
+    }
+
+    private Node getBestLeaf(Node excludedNode) {
+	reorderList();
+	Node child = null;
+	for(int i=0;i<children.size();i++) {
+		child = (Node)(children.get(((Integer)sortedIndexList.get(i)).intValue()));
+			if(excludedNode != null || excludedNode != child)
+				break;
+	}
+
+	if(isRack()) {
+		System.out.println("-----Aveek-----Child with name " + child.getName() + " with score " + child.getScore() + "has been selected as best leaf ");
+		return child;
+	}
+	else if(child != null){
+		return ((InnerNode)child).getBestLeaf(excludedNode);
+	}
+
+	return null;
     }
         
     int getNumOfLeaves() {
@@ -515,17 +563,40 @@ public class NetworkTopology {
    * @param scope range of nodes from which a node will be choosen
    * @return the choosen node
    */
-  public Node chooseRandom(String scope) {
+  public Node chooseRandom(String scope, boolean chooseRandom) {
     netlock.readLock().lock();
     try {
       if (scope.startsWith("~")) {
-        return chooseRandom(NodeBase.ROOT, scope.substring(1));
+        if(chooseRandom)
+   	  return chooseRandom(NodeBase.ROOT, scope.substring(1));
+	else 
+	  return chooseBest(NodeBase.ROOT, scope.substring(1));
       } else {
-        return chooseRandom(scope, null);
+        if(chooseRandom)
+   	  return chooseRandom(scope, null);
+	else 
+	  return chooseBest(scope,null);
       }
     } finally {
       netlock.readLock().unlock();
     }
+  }
+
+  private Node chooseBest(String scope, String excludedScope){
+     if (excludedScope != null) {
+      if (scope.startsWith(excludedScope)) {
+        return null;
+      }
+      if (!excludedScope.startsWith(scope)) {
+        excludedScope = null;
+      }
+    }
+    Node node = getNode(scope);
+    if (!(node instanceof InnerNode)) {
+      return node;
+    }
+    InnerNode innerNode = (InnerNode)node;
+    return innerNode.getBestLeaf(node);
   }
     
   private Node chooseRandom(String scope, String excludedScope){

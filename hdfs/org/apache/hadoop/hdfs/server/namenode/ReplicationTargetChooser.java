@@ -366,8 +366,9 @@ class ReplicationTargetChooser {
     numOfReplicas = (numOfAvailableNodes<numOfReplicas)?
       numOfAvailableNodes:numOfReplicas;
     while(numOfReplicas > 0) {
+	// SET
       DatanodeDescriptor choosenNode = 
-        (DatanodeDescriptor)(clusterMap.chooseRandom(nodes));
+        (DatanodeDescriptor)(clusterMap.chooseRandom(nodes,true));
       if (!excludedNodes.contains(choosenNode)) {
         results.add(choosenNode);
         excludedNodes.add(choosenNode);
