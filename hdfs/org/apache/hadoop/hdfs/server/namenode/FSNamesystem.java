@@ -2491,7 +2491,8 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
   /* Resolve a node's network location */
   private void resolveNetworkLocation (DatanodeDescriptor node) {
     List<String> names = new ArrayList<String>(1);
-    if (dnsToSwitchMapping instanceof CachedDNSToSwitchMapping) {
+    names.add(node.getName());
+    /*if (dnsToSwitchMapping instanceof CachedDNSToSwitchMapping) {
       // get the node's IP address
       names.add(node.getHost());
     } else {
@@ -2500,7 +2501,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
       int colon = hostName.indexOf(":");
       hostName = (colon==-1)?hostName:hostName.substring(0,colon);
       names.add(hostName);
-    }
+      }*/
     
     // resolve its network location
     List<String> rName = dnsToSwitchMapping.resolve(names);
@@ -2515,6 +2516,9 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
     node.setNetworkLocation(networkLocation);
   }
   
+    public long getRackCount(){
+        return clusterMap.getNumOfRacks();
+    }
   /**
    * Get registrationID for datanodes based on the namespaceID.
    * 

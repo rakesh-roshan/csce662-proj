@@ -111,6 +111,8 @@ to interact with datanodes.
 	"/browseDirectory.jsp?namenodeInfoPort=" +
 	nnHttpPort + "&dir=" +
 	URLEncoder.encode("/", "UTF-8");
+    
+    String rack = d.getNetworkLocation();
 
 	String name = d.getHostName() + ":" + d.getPort();
 	if ( !name.matches( "\\d+\\.\\d+.\\d+\\.\\d+.*" ) ) 
@@ -140,6 +142,8 @@ to interact with datanodes.
 			long timestamp = d.getLastUpdate();
 			long currentTime = System.currentTimeMillis();
 			out.print("<td class=\"lastcontact\"> " +
+					rack +
+					"<td class=\"lastcontact\"> " +
 					((currentTime - timestamp)/1000) +
 					"<td class=\"adminstate\">" +
 					adminState +
@@ -234,6 +238,7 @@ throws IOException {
 
 				out.print( "<tr class=\"headerRow\"> <th " +
 						NodeHeaderStr("name") + "> Node <th " +
+						NodeHeaderStr("rack") + "> Rack <th " +
 						NodeHeaderStr("lastcontact") + "> Last <br>Contact <th " +
 						NodeHeaderStr("adminstate") + "> Admin State <th " +
 						NodeHeaderStr("capacity") + "> Configured <br>Capacity (" + 
