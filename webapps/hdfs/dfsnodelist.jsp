@@ -113,7 +113,7 @@ to interact with datanodes.
 	URLEncoder.encode("/", "UTF-8");
     
     String rack = d.getNetworkLocation();
-
+    double score = d.getScore();
 	String name = d.getHostName() + ":" + d.getPort();
 	if ( !name.matches( "\\d+\\.\\d+.\\d+\\.\\d+.*" ) ) 
 		name = name.replaceAll( "\\.[^.:]*", "" );    
@@ -133,7 +133,7 @@ to interact with datanodes.
 			long nu = d.getNonDfsUsed();
 			long r = d.getRemaining();
 			String percentUsed = StringUtils.limitDecimalTo2(d.getDfsUsedPercent());    
-			String percentRemaining = StringUtils.limitDecimalTo2(d.getRemainingPercent());    
+			String percentRemaining = StringUtils.limitDecimalTo2(d.getDfsRemainingPercent());    
 
 			String adminState = (d.isDecommissioned() ? "Decommissioned" :
 				(d.isDecommissionInProgress() ? "Decommission In Progress":
@@ -143,6 +143,8 @@ to interact with datanodes.
 			long currentTime = System.currentTimeMillis();
 			out.print("<td class=\"lastcontact\"> " +
 					rack +
+					"<td class=\"lastcontact\"> " +
+					score +
 					"<td class=\"lastcontact\"> " +
 					((currentTime - timestamp)/1000) +
 					"<td class=\"adminstate\">" +
@@ -239,6 +241,7 @@ throws IOException {
 				out.print( "<tr class=\"headerRow\"> <th " +
 						NodeHeaderStr("name") + "> Node <th " +
 						NodeHeaderStr("rack") + "> Rack <th " +
+						NodeHeaderStr("score") + "> Score <th " +
 						NodeHeaderStr("lastcontact") + "> Last <br>Contact <th " +
 						NodeHeaderStr("adminstate") + "> Admin State <th " +
 						NodeHeaderStr("capacity") + "> Configured <br>Capacity (" + 
@@ -251,7 +254,7 @@ throws IOException {
 						diskByteStr + ") <th " + 
 						NodeHeaderStr("pcused") + "> Used <br>(%) <th " + 
 						NodeHeaderStr("pcused") + "> Used <br>(%) <th " +
-						NodeHeaderStr("pcremaining") + "> Remaining <br>(%) <th " +
+						NodeHeaderStr("pcremaining") + "> DFS Remaining <br>(%) <th " +
 						NodeHeaderStr("blocks") + "> Blocks\n" );
 
 				jspHelper.sortNodeList(live, sorterField, sorterOrder);

@@ -138,6 +138,14 @@ public class DatanodeInfo extends DatanodeID implements Node {
   public long getRemaining() { return remaining; }
 
   /** The remaining space as percentage of configured capacity. */
+  public float getDfsRemainingPercent() { 
+    if (capacity <= 0) {
+      return 0;
+    }
+
+    return ((float)remaining * 100.0f)/(float)(remaining+dfsUsed); 
+  }
+  /** The remaining space as percentage of configured capacity. */
   public float getRemainingPercent() { 
     if (capacity <= 0) {
       return 0;

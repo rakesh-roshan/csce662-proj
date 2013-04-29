@@ -337,21 +337,49 @@ public class NetworkTopology {
       }
     }
 
-    private Node getBestLeaf(Node excludedNode) {
+    private Node getBestLeaf(Node excludedNode, List<Node> excludedNodes) {
+	System.out.println("-----Aveek--- in getBestLeaf");
 	reorderList();
 	Node child = null;
+	System.out.print("AVEEK "+getPath(this)+" ");
 	for(int i=0;i<children.size();i++) {
 		child = (Node)(children.get(((Integer)sortedIndexList.get(i)).intValue()));
-			if(excludedNode != null || excludedNode != child)
-				break;
+  		System.out.print(child.getName()+":"+child.getScore()+", ");
 	}
-
+	System.out.println("");
 	if(isRack()) {
-		System.out.println("-----Aveek-----Child with name " + child.getName() + " with score " + child.getScore() + "has been selected as best leaf ");
+	    for(int i=0;i<children.size();i++) {
+		child = (Node)(children.get(((Integer)sortedIndexList.get(i)).intValue()));
+		if(excludedNode == null || (excludedNode != child)) {
+			if(!excludedNodes.contains(child))
+		 	      break;	
+		}
+		child = null;
+	    }
+
+
+//if(child==null) System.out.println("---------Aveek----------- CHILD IS NULL");
 		return child;
 	}
-	else if(child != null){
-		return ((InnerNode)child).getBestLeaf(excludedNode);
+	else {
+            for(int i=0;i<children.size();i++) {
+		child = (Node)(children.get(((Integer)sortedIndexList.get(i)).intValue()));
+		if (excludedNode != null){
+			System.out.println("Aveek excluding node "+excludedNode.getName()+" selecting node "+child.getName());
+		}
+		if(excludedNode == null || ((!((InnerNode)child).isAncestor(excludedNode) && child != excludedNode))) {
+			if(!excludedNodes.contains(child))
+		 	      break;	
+		}
+		child = null;
+	    }
+
+
+		if(child != null){
+			System.out.println("Aveek  selecting node "+child.getName());
+
+			return ((InnerNode)child).getBestLeaf(excludedNode, excludedNodes);
+		}
 	}
 
 	return null;
@@ -563,26 +591,36 @@ public class NetworkTopology {
    * @param scope range of nodes from which a node will be choosen
    * @return the choosen node
    */
-  public Node chooseRandom(String scope, boolean chooseRandom) {
+  public Node chooseRandom(String scope) {
     netlock.readLock().lock();
     try {
       if (scope.startsWith("~")) {
-        if(chooseRandom)
    	  return chooseRandom(NodeBase.ROOT, scope.substring(1));
-	else 
-	  return chooseBest(NodeBase.ROOT, scope.substring(1));
       } else {
-        if(chooseRandom)
    	  return chooseRandom(scope, null);
-	else 
-	  return chooseBest(scope,null);
       }
     } finally {
       netlock.readLock().unlock();
     }
   }
 
-  private Node chooseBest(String scope, String excludedScope){
+  public Node chooseBest(String scope, List<Node> excludedNodes) {
+System.out.println("Scope "+scope + " Size of excluded" + excludedNodes.size());
+    netlock.readLock().lock();
+    try {
+      if (scope.startsWith("~")) {
+          return chooseBest(NodeBase.ROOT, scope.substring(1), excludedNodes);
+      } else {
+          return chooseBest(scope,null,excludedNodes);
+      }
+    } finally {
+      netlock.readLock().unlock();
+    }
+
+  }
+
+  private Node chooseBest(String scope, String excludedScope, List<Node> excludedNodes){
+     System.out.println(" Aveek in rack "+scope+" excluding rack "+excludedScope+" in scope "+scope);
      if (excludedScope != null) {
       if (scope.startsWith(excludedScope)) {
         return null;
@@ -596,7 +634,12 @@ public class NetworkTopology {
       return node;
     }
     InnerNode innerNode = (InnerNode)node;
-    return innerNode.getBestLeaf(node);
+    if (excludedScope == null) {
+      node = null;
+    } else {
+      node = getNode(excludedScope);
+    }
+     return innerNode.getBestLeaf(node,excludedNodes);
   }
     
   private Node chooseRandom(String scope, String excludedScope){

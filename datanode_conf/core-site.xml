@@ -1,7 +1,7 @@
 <configuration>
 <property>
   <name>hadoop.tmp.dir</name>
-  <value>/app/hadoop/additionalData/3</value>
+  <value>/mnt/datanode/7</value>
   <description>A base for other temporary directories.</description>
 </property>
 <property>
