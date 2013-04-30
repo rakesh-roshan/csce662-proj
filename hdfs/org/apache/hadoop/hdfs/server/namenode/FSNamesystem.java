@@ -2615,7 +2615,6 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
 	}
 
 	nodeinfo.setScore((0.8*capacityScore) + (0.2*loadScore)); 
-	//System.out.println("---Aveek----- Node score for node " + nodeinfo.getName() + " is " + nodeinfo.getScore());
         updateStats(nodeinfo, true);
         
         //check lease recovery

@@ -338,15 +338,8 @@ public class NetworkTopology {
     }
 
     private Node getBestLeaf(Node excludedNode, List<Node> excludedNodes) {
-	System.out.println("-----Aveek--- in getBestLeaf");
 	reorderList();
 	Node child = null;
-	System.out.print("AVEEK "+getPath(this)+" ");
-	for(int i=0;i<children.size();i++) {
-		child = (Node)(children.get(((Integer)sortedIndexList.get(i)).intValue()));
-  		System.out.print(child.getName()+":"+child.getScore()+", ");
-	}
-	System.out.println("");
 	if(isRack()) {
 	    for(int i=0;i<children.size();i++) {
 		child = (Node)(children.get(((Integer)sortedIndexList.get(i)).intValue()));
@@ -358,15 +351,11 @@ public class NetworkTopology {
 	    }
 
 
-//if(child==null) System.out.println("---------Aveek----------- CHILD IS NULL");
 		return child;
 	}
 	else {
             for(int i=0;i<children.size();i++) {
 		child = (Node)(children.get(((Integer)sortedIndexList.get(i)).intValue()));
-		if (excludedNode != null){
-			System.out.println("Aveek excluding node "+excludedNode.getName()+" selecting node "+child.getName());
-		}
 		if(excludedNode == null || ((!((InnerNode)child).isAncestor(excludedNode) && child != excludedNode))) {
 			if(!excludedNodes.contains(child))
 		 	      break;	
@@ -376,8 +365,6 @@ public class NetworkTopology {
 
 
 		if(child != null){
-			System.out.println("Aveek  selecting node "+child.getName());
-
 			return ((InnerNode)child).getBestLeaf(excludedNode, excludedNodes);
 		}
 	}
@@ -605,7 +592,6 @@ public class NetworkTopology {
   }
 
   public Node chooseBest(String scope, List<Node> excludedNodes) {
-System.out.println("Scope "+scope + " Size of excluded" + excludedNodes.size());
     netlock.readLock().lock();
     try {
       if (scope.startsWith("~")) {
@@ -620,7 +606,6 @@ System.out.println("Scope "+scope + " Size of excluded" + excludedNodes.size());
   }
 
   private Node chooseBest(String scope, String excludedScope, List<Node> excludedNodes){
-     System.out.println(" Aveek in rack "+scope+" excluding rack "+excludedScope+" in scope "+scope);
      if (excludedScope != null) {
       if (scope.startsWith(excludedScope)) {
         return null;
