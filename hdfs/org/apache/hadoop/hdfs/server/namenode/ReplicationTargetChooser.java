@@ -68,7 +68,6 @@ class ReplicationTargetChooser {
                                     DatanodeDescriptor writer,
                                     List<Node> excludedNodes,
                                     long blocksize) {
-    System.out.println("Aveek chosing target 1 replicas count "+numOfReplicas);
     if (excludedNodes == null) {
       excludedNodes = new ArrayList<Node>();
     }
@@ -95,7 +94,6 @@ class ReplicationTargetChooser {
                                     List<DatanodeDescriptor> choosenNodes,
                                     List<Node> excludedNodes,
                                     long blocksize) {
-    System.out.println("Aveek chosing target 2 replicas count "+numOfReplicas);
     if (numOfReplicas == 0 || clusterMap.getNumOfLeaves()==0) {
       return new DatanodeDescriptor[0];
     }
@@ -139,7 +137,6 @@ class ReplicationTargetChooser {
                                           long blocksize,
                                           int maxNodesPerRack,
                                           List<DatanodeDescriptor> results) {
-    System.out.println("Aveek chosing target 3 replicas count "+numOfReplicas);
       
     if (numOfReplicas == 0 || clusterMap.getNumOfLeaves()==0) {
       return writer;
@@ -204,23 +201,10 @@ class ReplicationTargetChooser {
     throws NotEnoughReplicasException {
     // if no local machine, randomly choose one node
     if (localMachine == null){
-	System.out.println("No local machine, choose onsame rack");
       return chooseRandom(NodeBase.ROOT, excludedNodes, 
                           blocksize, maxNodesPerRack, results);
    }
-    System.out.println("Aveek chosing target in local node "+localMachine.getName());
-    // otherwise try local machine first
-    if (!excludedNodes.contains(localMachine)) {
-      excludedNodes.add(localMachine);
-      if (isGoodTarget(localMachine, blocksize,
-                       maxNodesPerRack, false, results)) {
-        results.add(localMachine);
-        return localMachine;
-      }
-    } 
-      
-    // try a node on local rack
-    return chooseLocalRack(localMachine, excludedNodes, 
+        return chooseLocalRack(localMachine, excludedNodes, 
                            blocksize, maxNodesPerRack, results);
   }
     
@@ -238,7 +222,6 @@ class ReplicationTargetChooser {
                                              int maxNodesPerRack,
                                              List<DatanodeDescriptor> results)
     throws NotEnoughReplicasException {
-    System.out.println("Aveek chosing target in local rack ");
     // no local machine, so choose a random machine
     if (localMachine == null) {
       return chooseRandom(NodeBase.ROOT, excludedNodes, 
@@ -292,7 +275,6 @@ class ReplicationTargetChooser {
                                 int maxReplicasPerRack,
                                 List<DatanodeDescriptor> results)
     throws NotEnoughReplicasException {
-    System.out.println("Aveek chosing target in remote rack ");
     int oldNumOfReplicas = results.size();
     // randomly choose one node from remote racks
     try {
@@ -375,20 +357,13 @@ class ReplicationTargetChooser {
     while(numOfReplicas > 0) {
 	// SET
       DatanodeDescriptor choosenNode = 
-        //(DatanodeDescriptor)(clusterMap.chooseRandom(nodes));
-        (DatanodeDescriptor)(clusterMap.chooseBest(nodes,excludedNodes));
+        (DatanodeDescriptor)(clusterMap.chooseRandom(nodes));
+        //(DatanodeDescriptor)(clusterMap.chooseBest(nodes,excludedNodes));
       if (choosenNode != null && !excludedNodes.contains(choosenNode)) {
-        //System.out.println("Node found "+choosenNode.getName());
         results.add(choosenNode);
         excludedNodes.add(choosenNode);
         numOfReplicas--;
-      }else if(choosenNode !=null){
-        System.out.print("Node not found "+choosenNode.getName()+" excluded node ");
-	for(Node n:excludedNodes){
-		System.out.print(" "+n.getName()+" ");
-	}
-	System.out.println("");	
-      }
+      }    
     }
     return (DatanodeDescriptor[])results.toArray(
                                                  new DatanodeDescriptor[results.size()]);    
