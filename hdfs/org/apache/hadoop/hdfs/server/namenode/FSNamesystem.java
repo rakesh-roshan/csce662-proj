@@ -50,6 +50,8 @@ import java.util.TreeSet;
 import java.util.Map.Entry;
 import java.util.concurrent.TimeUnit;
 import java.util.PriorityQueue;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.Comparator;
 
 import javax.management.NotCompliantMBeanException;
@@ -92,6 +94,7 @@ import org.apache.hadoop.hdfs.server.namenode.LeaseManager.Lease;
 import org.apache.hadoop.hdfs.server.namenode.UnderReplicatedBlocks.BlockIterator;
 import org.apache.hadoop.hdfs.server.namenode.metrics.FSNamesystemMBean;
 import org.apache.hadoop.hdfs.server.protocol.BlocksWithLocations;
+import org.apache.hadoop.hdfs.server.protocol.BlocksWithLocations.BlockWithLocations;
 import org.apache.hadoop.hdfs.server.protocol.DatanodeCommand;
 import org.apache.hadoop.hdfs.server.protocol.DatanodeRegistration;
 import org.apache.hadoop.hdfs.server.protocol.DisallowedDatanodeException;
@@ -100,6 +103,7 @@ import org.apache.hadoop.hdfs.server.protocol.NamespaceInfo;
 import org.apache.hadoop.hdfs.server.protocol.UpgradeCommand;
 import org.apache.hadoop.hdfs.server.protocol.BlocksWithLocations.BlockWithLocations;
 import org.apache.hadoop.hdfs.server.protocol.BalancerBandwidthCommand;
+import org.apache.hadoop.hdfs.server.balancer.AutomaticBalancer;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.ipc.Server;
@@ -293,6 +297,25 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
   private ReplicationMonitor replmon = null; // Replication metrics
   
     private Daemon balthread = null; //ROSHAN Balancer thread
+    private Daemon keyupdaterthread;
+    private TreeSet<DatanodeDescriptor> sortedDataNodes =new TreeSet<DatanodeDescriptor>(
+								new Comparator<DatanodeDescriptor>(){
+                                                                     public int compare(DatanodeDescriptor dn1,
+                                                                                        DatanodeDescriptor dn2){
+                                                                         double u1 = (double)dn1.getDfsUsed()/dn1.getCapacity();
+                                                                         double u2 = (double)dn2.getDfsUsed()/dn2.getCapacity();
+                                                                         //System.out.println("ROSHAN comparator "+u1 + " u2: "+u2);
+                                                                         int ret = 0;
+                                                                         double diff = u2 - u1;
+                                                                         if(diff > 0 ){
+                                                                             ret = 1;
+                                                                         }else if(diff < 0){
+                                                                             ret = -1;
+                                                                         }
+                                                                         return ret; //Descending order
+                                                                     }
+								}
+								);
     private PriorityQueue<DatanodeDescriptor> dataNodesSortedByCapacity = new PriorityQueue<DatanodeDescriptor> (5, 
                                                                  new Comparator<DatanodeDescriptor>(){
                                                                      public int compare(DatanodeDescriptor dn1,
@@ -312,7 +335,12 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
                                                                  }); // ROSHAN list of dataNodes sorted
     private volatile boolean fsRunning = true;
   long systemStart = 0;
+  boolean shouldRun = false;
+  long keyUpdaterInterval;
 
+   BlockTokenSecretManager blockTokenSecretManager;
+  long blockKeyUpdateInterval;
+  long blockTokenLifetime;
   //  The maximum number of replicates we should allow for a single block
   private int maxReplication;
   //  How many outgoing replication streams a given node should have at one time
@@ -418,12 +446,14 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
           accessKeyUpdateInterval, accessTokenLifetime);
     }
     this.hbthread = new Daemon(new HeartbeatMonitor());
-    this.lmthread = new Daemon(leaseManager.new Monitor());
+    this.lmthread = new Daemon(leaseManager.new Monitor()); 
+    this.balthread = new Daemon(new RebalanceMonitor());
     this.replmon = new ReplicationMonitor();
     this.replthread = new Daemon(replmon);
     hbthread.start();
     lmthread.start();
     replthread.start();
+    balthread.start();
 
     this.hostsReader = new HostsFileReader(conf.get("dfs.hosts",""),
                                            conf.get("dfs.hosts.exclude",""));
@@ -2668,16 +2698,19 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
       capacityUsed += node.getDfsUsed();
       capacityRemaining += node.getRemaining();
       totalLoad += node.getXceiverCount();
-      dataNodesSortedByCapacity.add(node);
+      //dataNodesSortedByCapacity.add(node);
+      sortedDataNodes.add(node);
     } else {
       capacityTotal -= node.getCapacity();
       capacityUsed -= node.getDfsUsed();
       capacityRemaining -= node.getRemaining();
       totalLoad -= node.getXceiverCount();
-      dataNodesSortedByCapacity.remove(node);
+      //dataNodesSortedByCapacity.remove(node);
+      sortedDataNodes.add(node);
     }
     System.out.print("ROSHAN datanodes are: ");
-    for(DatanodeDescriptor dn:dataNodesSortedByCapacity){
+    //for(DatanodeDescriptor dn:dataNodesSortedByCapacity){
+    for(DatanodeDescriptor dn:sortedDataNodes){
         System.out.print(dn.getStorageID() + "->" + (double)dn.getDfsUsed()/dn.getCapacity()+ "; ");
     }
     System.out.println("");
@@ -2693,6 +2726,137 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
         nodeInfo.needKeyUpdate = true;
       }
     }
+  }
+
+  class RebalanceMonitor implements Runnable {
+
+	//List to keep track of the datanodes whos loads are currently being rebalanced
+	private List <DatanodeDescriptor> nodesInTransition = new ArrayList<DatanodeDescriptor>();
+	private double THRESHOLD = 0.1;
+	public void run() {
+		while(fsRunning) {
+	   		try {
+			  synchronized(sortedDataNodes) {
+				nodesInTransition.clear();
+				boolean shouldRebalance = true;
+				while(shouldRebalance) {
+					//Not enough nodes
+					if(sortedDataNodes.size() < 2) {
+						shouldRebalance = false;
+					}				
+					else { 
+						//TODO check formula
+                                                double avgLoad = capacityUsed/capacityRemaining;
+						for(Iterator<DatanodeDescriptor> forwardIterator = sortedDataNodes.iterator(); 
+							forwardIterator.hasNext() && shouldRebalance;) {								
+							DatanodeDescriptor highestNode = forwardIterator.next();
+							//Check if the node is not currently in transition
+							if(!nodesInTransition.contains(highestNode)) {
+								double highestLoad = (double)highestNode.getDfsUsed()/highestNode.getCapacity();
+								//Check if there is any need for rebalancing
+								if((highestLoad - avgLoad) < THRESHOLD) {
+									shouldRebalance = false;
+									break;
+								}
+								else {
+									for(Iterator<DatanodeDescriptor> reverseIterator = sortedDataNodes.descendingIterator();
+										reverseIterator.hasNext();) {
+										DatanodeDescriptor lowestNode = reverseIterator.next();
+										//Check if the node is not currently in transition
+										if(!nodesInTransition.contains(lowestNode)) {
+											double lowestLoad = (double)lowestNode.getDfsUsed()/lowestNode.getCapacity();
+											//Check if this node's load is low enough
+											if((avgLoad - lowestLoad) < THRESHOLD) {
+												shouldRebalance = false;
+												break;
+											}
+											else {
+												AutomaticBalancer auto = new AutomaticBalancer(highestNode, lowestNode, clusterMap);
+												long sizeAvailInHigh = (long)Math.abs(((highestLoad - avgLoad) * highestNode.getCapacity()));
+												long sizeAvailInLow = (long)Math.abs(((avgLoad - lowestLoad) * lowestNode.getCapacity()));
+												long sizeToMove = Math.min(sizeAvailInHigh,sizeAvailInLow);	
+												BlocksWithLocations blocks = getBlocks(highestNode, sizeToMove);
+
+												ExportedBlockKeys keys = getBlockKeys();
+												boolean isBlockTokenEnabled = keys.isBlockTokenEnabled();
+
+												if (isBlockTokenEnabled) {
+      													blockKeyUpdateInterval = keys.getKeyUpdateInterval();
+      													blockTokenLifetime = keys.getTokenLifetime();
+      													LOG.info("Block token params received from NN: keyUpdateInterval="
+											          	+ blockKeyUpdateInterval / (60 * 1000) + " min(s), tokenLifetime="
+											          	+ blockTokenLifetime / (60 * 1000) + " min(s)");
+
+													blockTokenSecretManager = new BlockTokenSecretManager(false,blockKeyUpdateInterval, blockTokenLifetime);
+      													blockTokenSecretManager.setKeys(keys);
+													keyUpdaterInterval = blockKeyUpdateInterval / 4;
+
+											   		LOG.info("Balancer will update its block keys every "
+											          	+ keyUpdaterInterval / (60 * 1000) + " minute(s)");
+
+      													keyupdaterthread = new Daemon(new BlockKeyUpdater());
+      													shouldRun = true;
+      													keyupdaterthread.start();												
+													auto.dispatchBlocks(blocks, blockTokenSecretManager);
+												}
+												else {
+													auto.dispatchBlocks(blocks, null);
+												}
+											}
+										}
+									}
+								}
+							
+							}
+						}
+					}
+				}
+			   }	
+	   		}catch (Exception e) {
+              			FSNamesystem.LOG.error(StringUtils.stringifyException(e));
+	   		}	 
+          		try {
+          			Thread.sleep(120000);  // 120  seconds
+        		} catch (InterruptedException ie) {        		
+		}
+	}
+   }
+
+   /**
+   * Periodically updates access keys.
+   */
+  class BlockKeyUpdater implements Runnable {
+
+    public void run() {
+      while (shouldRun) {
+        try {
+          blockTokenSecretManager.setKeys(getBlockKeys());
+        } catch (Exception e) {
+          LOG.error(StringUtils.stringifyException(e));
+        }
+        try {
+          Thread.sleep(keyUpdaterInterval);
+        } catch (InterruptedException ie) {
+        }
+      }
+    }
+  }
+
+
+	/*private double getAvgLoad(DatanodeDescriptor[] sortedNodeArray) {
+		int size = dataNodesSortedByCapacity.size();
+		if(size == 0) {
+			return 0;
+		}
+
+		double sum = 0;
+		for(int i=0;i<size;i++) {
+			DatanodeDescriptor dn = sortedNodeArray[i];
+			sum += (double)	dn.getDfsUsed()/dn.getCapacity();
+		}
+
+		return sum/size;
+	}*/
   }
 
   /**
