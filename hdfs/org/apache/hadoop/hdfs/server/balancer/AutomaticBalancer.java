@@ -50,18 +50,17 @@ public class AutomaticBalancer {
 	private NetworkTopology cluster = new NetworkTopology();
 	private BlockTokenSecretManager blockTokenSecretManager;
 	private NavigableMap<String, DatanodeDescriptor> nodeMap;
-	private Collection<Block> recentInvalidateSets;
-	private List<Block> movedBlockList;
+	//private Collection<Block> recentInvalidateSets;
+	private Map<String, List<Block>> movedBlockList;
 
 
 	public AutomaticBalancer(DatanodeDescriptor source, DatanodeDescriptor target, NetworkTopology cluster, 
-					NavigableMap<String, DatanodeDescriptor> map, Collection<Block> recentInvalidateSets) {
-		sourceNode = source;
-		targetNode = target;
+					NavigableMap<String, DatanodeDescriptor> map, Map<String, List<Block>> movedBlocks) {
+		this.sourceNode = source;
+		this.targetNode = target;
 		this.cluster = cluster;
 		this.nodeMap = map;
-		this.recentInvalidateSets = recentInvalidateSets;
-		this.movedBlockList = new ArrayList<Block>();
+		this.movedBlockList = movedBlocks; 
 	}
 
 /*	private void getSourceBlocks() throws IOException{
@@ -84,7 +83,7 @@ public class AutomaticBalancer {
 	}
 */
 	private boolean isGoodBlockCandidate(BlockInfo block) {
-		if(recentInvalidateSets!=null && recentInvalidateSets.contains(block)) {
+		if(movedBlockList.get(sourceNode.getStorageID())!=null && movedBlockList.get(sourceNode.getStorageID()).contains(block)) {
 System.out.println("Not good becuase in invalidate set");
 			return false;
 		}
@@ -102,6 +101,7 @@ System.out.println("Not good because already in target node");
 				if(cluster.isOnSameRack(targetNode,node)) {
 System.out.println("Found proxy node!!! " + node.getName());
 					block.setProxySource(node);
+					break;
 				}
 			}
 		}
@@ -128,7 +128,7 @@ System.out.println("Found proxy node!!! " + node.getName());
 		return goodBlock;
 	}
 
-	public List<Block> dispatchBlocks(BlocksWithLocations blocks, BlockTokenSecretManager manager) {
+	public void dispatchBlocks(BlocksWithLocations blocks, BlockTokenSecretManager manager) {
 		this.blockTokenSecretManager = manager;
 System.out.println("Roshan - Inside dispatchBlocks");
 		for(BlockWithLocations block : blocks.getBlocks()) {
@@ -151,11 +151,13 @@ System.out.println("Roshan - Exception!!!");
 System.out.println("");
 			if(isGoodBlockCandidate(info)) {
 				dispatch(info);
-				movedBlockList.add(info.getBlock());
+				if(movedBlockList.get(sourceNode.getStorageID())==null){
+					movedBlockList.put(sourceNode.getStorageID(),new ArrayList<Block>());
+				}
+				movedBlockList.get(sourceNode.getStorageID()).add(info.getBlock());
 			}
 		}
                 System.out.println("Roshan dispatched blocks");
-		return movedBlockList;
 	}
 
 	private void dispatch(BlockInfo info) {
@@ -201,7 +203,8 @@ System.out.println("Moving " + info.getBlock().getBlockId() + "Source = " + sour
 		out.writeByte(DataTransferProtocol.OP_REPLACE_BLOCK);
 		out.writeLong(info.getBlock().getBlockId());
 		out.writeLong(info.getBlock().getGenerationStamp());
-		Text.writeString(out, sourceNode.getStorageID());
+		Text.writeString(out, sourceNode.getStorageID()); //Avoid deleting block
+		//Text.writeString(out, "");
 		info.getProxySource().write(out);
 		
 		Token<BlockTokenIdentifier> accessToken = BlockTokenSecretManager.DUMMY_TOKEN;

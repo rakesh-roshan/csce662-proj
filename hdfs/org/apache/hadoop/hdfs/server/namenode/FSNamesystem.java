@@ -2719,8 +2719,9 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
       capacityRemaining -= node.getRemaining();
       totalLoad -= node.getXceiverCount();
       //dataNodesSortedByCapacity.remove(node);
-      sortedDataNodes.add(node);
+      sortedDataNodes.remove(node);
     }
+/*
     //System.out.print("ROSHAN capacity "+capacityUsed+" datanodes are: ");
     //for(DatanodeDescriptor dn:dataNodesSortedByCapacity){
     //for(DatanodeDescriptor dn:sortedDataNodes){
@@ -2729,6 +2730,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
         //System.out.print(dn.getStorageID() + "->" + getDatanodeScore(dn) + "; ");
     }
     //System.out.println("");
+*/
   }
 
   /**
@@ -2746,8 +2748,10 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
   class RebalanceMonitor implements Runnable {
 
 	//List to keep track of the datanodes whos loads are currently being rebalanced
-	private List <Block> blocksInTransition = new ArrayList<Block>();
+	//private List <Block> blocksInTransition = new ArrayList<Block>();
+	private Map<String, List<Block>> movedBlocks = new HashMap<String, List<Block>>();
 	private double THRESHOLD = 0.05;
+	private DatanodeDescriptor highestNode, lowestNode;
 	public void run() {
           		try {
                                 System.out.println("Roshan going to sleep");
@@ -2758,7 +2762,7 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
 		while(fsRunning) {
 	   		try {
 			  //synchronized(sortedDataNodes) {
-				blocksInTransition.clear();
+				//blocksInTransition.clear();
 				boolean shouldRebalance = true;
 				while(shouldRebalance) {
 System.out.println("Roshan - In should rebalance");
@@ -2771,9 +2775,13 @@ System.out.println("Roshan - Not enough nodes");
 						//TODO check formula
                                                 double avgLoad = (double)capacityUsed/capacityTotal;
 System.out.println("Avg load = " + avgLoad);
-						for(Iterator<DatanodeDescriptor> forwardIterator = sortedDataNodes.iterator(); 
-							forwardIterator.hasNext() && shouldRebalance;) {
-							DatanodeDescriptor highestNode = forwardIterator.next();
+			  			synchronized(sortedDataNodes) {
+							highestNode = sortedDataNodes.first();
+							lowestNode = sortedDataNodes.last();
+						}
+						//for(Iterator<DatanodeDescriptor> forwardIterator = sortedDataNodes.iterator(); 
+							//forwardIterator.hasNext() && shouldRebalance;) {
+							//DatanodeDescriptor highestNode = forwardIterator.next();
 							//Check if the node is not currently in transition
 							//if(!nodesInTransition.contains(highestNode)) {
 								//double highestLoad = (double)highestNode.getDfsUsed()/highestNode.getCapacity();
@@ -2786,9 +2794,9 @@ System.out.println("Roshan - highest too low to rebalance");
 									break;
 								}
 								else {
-									for(Iterator<DatanodeDescriptor> reverseIterator = sortedDataNodes.descendingIterator();
-										reverseIterator.hasNext();) {
-										DatanodeDescriptor lowestNode = reverseIterator.next();
+									//for(Iterator<DatanodeDescriptor> reverseIterator = sortedDataNodes.descendingIterator();
+										//reverseIterator.hasNext();) {
+										//DatanodeDescriptor lowestNode = reverseIterator.next();
 										//Check if the node is not currently in transition
 										//if(!nodesInTransition.contains(lowestNode)) {
 											//double lowestLoad = (double)lowestNode.getDfsUsed()/lowestNode.getCapacity();
@@ -2801,7 +2809,7 @@ System.out.println("Roshan - lowest too high to rebalance ");
 												break;
 											}
 											else {
-												AutomaticBalancer auto = new AutomaticBalancer(highestNode, lowestNode, clusterMap, datanodeMap, recentInvalidateSets.get(highestNode.getStorageID()));
+												AutomaticBalancer auto = new AutomaticBalancer(highestNode, lowestNode, clusterMap, datanodeMap, movedBlocks);
 												long sizeAvailInHigh = (long)Math.abs(((highestLoad - avgLoad) * highestNode.getCapacity()));
 												long sizeAvailInLow = (long)Math.abs(((avgLoad - lowestLoad) * lowestNode.getCapacity()));
 												long sizeToMove = Math.min(sizeAvailInHigh,sizeAvailInLow);	
@@ -2828,21 +2836,21 @@ System.out.println("Size in highest = " + sizeAvailInHigh + " Size in lowest = "
       													keyupdaterthread = new Daemon(new BlockKeyUpdater());
       													shouldRun = true;
       													keyupdaterthread.start();												
-													blocksInTransition = auto.dispatchBlocks(blocks, blockTokenSecretManager);
+													auto.dispatchBlocks(blocks, blockTokenSecretManager);
 												}
 												else {
-													blocksInTransition = auto.dispatchBlocks(blocks, null);
+													auto.dispatchBlocks(blocks, null);
 												}
-												for(int i=0;i<blocksInTransition.size();i++) {
+												/*for(int i=0;i<blocksInTransition.size();i++) {
 													addToInvalidates(blocksInTransition.get(i),highestNode);	
-												}
+												}*/
 											}
 										//}
-									}
+									//}
 								}
 							
 							//}
-						}
+						//}
 					}
 				}
 			   //}	
