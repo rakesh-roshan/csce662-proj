@@ -224,6 +224,7 @@ public class NetworkTopology {
         
     /** Given a node's string representation, return a reference to the node */ 
     private Node getLoc(String loc) {
+//System.out.println("Roshan - In getLoc - ");
       if (loc == null || loc.length() == 0) return this;
             
       String[] path = loc.split(PATH_SEPARATOR_STR, 2);
@@ -391,6 +392,7 @@ public class NetworkTopology {
    * @return a reference to the node; null if the node is not in the tree
    */
   public Node getNode(String loc) {
+//System.out.println("Roshan - In getNode for location - " + loc);
     netlock.readLock().lock();
     try {
       loc = NodeBase.normalize(loc);

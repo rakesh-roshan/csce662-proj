@@ -302,8 +302,10 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
 								new Comparator<DatanodeDescriptor>(){
                                                                      public int compare(DatanodeDescriptor dn1,
                                                                                         DatanodeDescriptor dn2){
-                                                                         double u1 = (double)dn1.getDfsUsed()/dn1.getCapacity();
-                                                                         double u2 = (double)dn2.getDfsUsed()/dn2.getCapacity();
+                                                                        //double u1 = (double)(dn1.getDfsUsed()-recentlyInvalidateBlocks.get(id).size()*max_block_size)/dn1.getCapacity();
+                                                                        double u1 = getDatanodeScore(dn1); 
+									//double u2 = (double)dn2.getDfsUsed()/dn2.getCapacity();
+									double u2 = getDatanodeScore(dn2);
                                                                          //System.out.println("ROSHAN comparator "+u1 + " u2: "+u2);
                                                                          int ret = 0;
                                                                          double diff = u2 - u1;
@@ -411,6 +413,17 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
       close();
       throw e;
     }
+  }
+
+  private double getDatanodeScore(DatanodeDescriptor node) {
+	long invalidateSize =  0;
+	if(recentInvalidateSets.get(node.getStorageID())!=null) {
+		invalidateSize = recentInvalidateSets.get(node.getStorageID()).size() * getDefaultBlockSize();
+	}
+	
+                                                                        //double u1 = (double)(dn1.getDfsUsed()-recentlyInvalidateBlocks.get(id).size()*max_block_size)/dn1.getCapacity();
+	return ((double)(node.getDfsUsed() - invalidateSize)) / node.getCapacity();
+	
   }
 
   void activateSecretManager() throws IOException {
@@ -2708,12 +2721,14 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
       //dataNodesSortedByCapacity.remove(node);
       sortedDataNodes.add(node);
     }
-    System.out.print("ROSHAN datanodes are: ");
+    //System.out.print("ROSHAN capacity "+capacityUsed+" datanodes are: ");
     //for(DatanodeDescriptor dn:dataNodesSortedByCapacity){
-    for(DatanodeDescriptor dn:sortedDataNodes){
-        System.out.print(dn.getStorageID() + "->" + (double)dn.getDfsUsed()/dn.getCapacity()+ "; ");
+    //for(DatanodeDescriptor dn:sortedDataNodes){
+    for(Iterator<DatanodeDescriptor> iter = sortedDataNodes.iterator();iter.hasNext();) {
+	DatanodeDescriptor dn = iter.next();
+        //System.out.print(dn.getStorageID() + "->" + getDatanodeScore(dn) + "; ");
     }
-    System.out.println("");
+    //System.out.println("");
   }
 
   /**
@@ -2731,30 +2746,42 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
   class RebalanceMonitor implements Runnable {
 
 	//List to keep track of the datanodes whos loads are currently being rebalanced
-	private List <DatanodeDescriptor> nodesInTransition = new ArrayList<DatanodeDescriptor>();
-	private double THRESHOLD = 0.1;
+	private List <Block> blocksInTransition = new ArrayList<Block>();
+	private double THRESHOLD = 0.05;
 	public void run() {
+          		try {
+                                System.out.println("Roshan going to sleep");
+          			Thread.sleep(120000);  // 120  seconds
+                                System.out.println("Roshan Wakeup");
+        		} catch (InterruptedException ie) {        		
+                  }
 		while(fsRunning) {
 	   		try {
-			  synchronized(sortedDataNodes) {
-				nodesInTransition.clear();
+			  //synchronized(sortedDataNodes) {
+				blocksInTransition.clear();
 				boolean shouldRebalance = true;
 				while(shouldRebalance) {
+System.out.println("Roshan - In should rebalance");
 					//Not enough nodes
 					if(sortedDataNodes.size() < 2) {
+System.out.println("Roshan - Not enough nodes");
 						shouldRebalance = false;
 					}				
 					else { 
 						//TODO check formula
-                                                double avgLoad = capacityUsed/capacityRemaining;
+                                                double avgLoad = (double)capacityUsed/capacityTotal;
+System.out.println("Avg load = " + avgLoad);
 						for(Iterator<DatanodeDescriptor> forwardIterator = sortedDataNodes.iterator(); 
-							forwardIterator.hasNext() && shouldRebalance;) {								
+							forwardIterator.hasNext() && shouldRebalance;) {
 							DatanodeDescriptor highestNode = forwardIterator.next();
 							//Check if the node is not currently in transition
-							if(!nodesInTransition.contains(highestNode)) {
-								double highestLoad = (double)highestNode.getDfsUsed()/highestNode.getCapacity();
+							//if(!nodesInTransition.contains(highestNode)) {
+								//double highestLoad = (double)highestNode.getDfsUsed()/highestNode.getCapacity();
+								double highestLoad = getDatanodeScore(highestNode);
+System.out.println("Roshan - Highest node selected - " + highestNode.getName() + " Load = " + highestLoad);
 								//Check if there is any need for rebalancing
 								if((highestLoad - avgLoad) < THRESHOLD) {
+System.out.println("Roshan - highest too low to rebalance");
 									shouldRebalance = false;
 									break;
 								}
@@ -2763,18 +2790,22 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
 										reverseIterator.hasNext();) {
 										DatanodeDescriptor lowestNode = reverseIterator.next();
 										//Check if the node is not currently in transition
-										if(!nodesInTransition.contains(lowestNode)) {
-											double lowestLoad = (double)lowestNode.getDfsUsed()/lowestNode.getCapacity();
+										//if(!nodesInTransition.contains(lowestNode)) {
+											//double lowestLoad = (double)lowestNode.getDfsUsed()/lowestNode.getCapacity();
+											double lowestLoad = getDatanodeScore(lowestNode); 
+System.out.println("Roshan - Lowest Node selected - " + lowestNode.getName() + " Load = "+lowestLoad);
 											//Check if this node's load is low enough
 											if((avgLoad - lowestLoad) < THRESHOLD) {
+System.out.println("Roshan - lowest too high to rebalance ");
 												shouldRebalance = false;
 												break;
 											}
 											else {
-												AutomaticBalancer auto = new AutomaticBalancer(highestNode, lowestNode, clusterMap);
+												AutomaticBalancer auto = new AutomaticBalancer(highestNode, lowestNode, clusterMap, datanodeMap, recentInvalidateSets.get(highestNode.getStorageID()));
 												long sizeAvailInHigh = (long)Math.abs(((highestLoad - avgLoad) * highestNode.getCapacity()));
 												long sizeAvailInLow = (long)Math.abs(((avgLoad - lowestLoad) * lowestNode.getCapacity()));
 												long sizeToMove = Math.min(sizeAvailInHigh,sizeAvailInLow);	
+System.out.println("Size in highest = " + sizeAvailInHigh + " Size in lowest = "+sizeAvailInLow + " size to move = " + sizeToMove);
 												BlocksWithLocations blocks = getBlocks(highestNode, sizeToMove);
 
 												ExportedBlockKeys keys = getBlockKeys();
@@ -2797,26 +2828,32 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
       													keyupdaterthread = new Daemon(new BlockKeyUpdater());
       													shouldRun = true;
       													keyupdaterthread.start();												
-													auto.dispatchBlocks(blocks, blockTokenSecretManager);
+													blocksInTransition = auto.dispatchBlocks(blocks, blockTokenSecretManager);
 												}
 												else {
-													auto.dispatchBlocks(blocks, null);
+													blocksInTransition = auto.dispatchBlocks(blocks, null);
+												}
+												for(int i=0;i<blocksInTransition.size();i++) {
+													addToInvalidates(blocksInTransition.get(i),highestNode);	
 												}
 											}
-										}
+										//}
 									}
 								}
 							
-							}
+							//}
 						}
 					}
 				}
-			   }	
+			   //}	
 	   		}catch (Exception e) {
               			FSNamesystem.LOG.error(StringUtils.stringifyException(e));
+				e.printStackTrace(System.out);
 	   		}	 
           		try {
-          			Thread.sleep(120000);  // 120  seconds
+                                System.out.println("Roshan going to sleep");
+          			Thread.sleep(20000);  // 120  seconds
+                                System.out.println("Roshan Wakeup");
         		} catch (InterruptedException ie) {        		
 		}
 	}

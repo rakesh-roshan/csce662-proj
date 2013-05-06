@@ -653,6 +653,8 @@ class DataXceiver implements Runnable, FSConstants {
       // notify name node
       datanode.notifyNamenodeReceivedBlock(block, sourceID);
 
+System.out.println("Moved block " + block + " from " + s.getRemoteSocketAddress());
+
       LOG.info("Moved block " + block + 
           " from " + s.getRemoteSocketAddress());
       

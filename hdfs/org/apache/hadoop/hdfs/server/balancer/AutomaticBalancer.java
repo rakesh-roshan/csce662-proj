@@ -34,6 +34,10 @@ import java.util.Iterator;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.EnumSet;
+import java.util.NavigableMap;
+import java.util.TreeMap;
+import java.util.Collection;
+import java.util.Map;
 
 public class AutomaticBalancer {
 
@@ -45,11 +49,19 @@ public class AutomaticBalancer {
 
 	private NetworkTopology cluster = new NetworkTopology();
 	private BlockTokenSecretManager blockTokenSecretManager;
+	private NavigableMap<String, DatanodeDescriptor> nodeMap;
+	private Collection<Block> recentInvalidateSets;
+	private List<Block> movedBlockList;
 
-	public AutomaticBalancer(DatanodeDescriptor source, DatanodeDescriptor target, NetworkTopology cluster) {
+
+	public AutomaticBalancer(DatanodeDescriptor source, DatanodeDescriptor target, NetworkTopology cluster, 
+					NavigableMap<String, DatanodeDescriptor> map, Collection<Block> recentInvalidateSets) {
 		sourceNode = source;
 		targetNode = target;
 		this.cluster = cluster;
+		this.nodeMap = map;
+		this.recentInvalidateSets = recentInvalidateSets;
+		this.movedBlockList = new ArrayList<Block>();
 	}
 
 /*	private void getSourceBlocks() throws IOException{
@@ -72,9 +84,14 @@ public class AutomaticBalancer {
 	}
 */
 	private boolean isGoodBlockCandidate(BlockInfo block) {
+		if(recentInvalidateSets!=null && recentInvalidateSets.contains(block)) {
+System.out.println("Not good becuase in invalidate set");
+			return false;
+		}
 		//Check if block is already in target
 		boolean goodBlock = true;
 		if(block.inLocation(targetNode)) {
+System.out.println("Not good because already in target node");
 			goodBlock = false;	
 		}
 		
@@ -83,6 +100,7 @@ public class AutomaticBalancer {
 			for(DatanodeDescriptor node : block.getLocations()) {
 			//Check if any of the other replicas are located on the same rack. set proxy if there is 
 				if(cluster.isOnSameRack(targetNode,node)) {
+System.out.println("Found proxy node!!! " + node.getName());
 					block.setProxySource(node);
 				}
 			}
@@ -110,25 +128,40 @@ public class AutomaticBalancer {
 		return goodBlock;
 	}
 
-	public void dispatchBlocks(BlocksWithLocations blocks, BlockTokenSecretManager manager) {
+	public List<Block> dispatchBlocks(BlocksWithLocations blocks, BlockTokenSecretManager manager) {
 		this.blockTokenSecretManager = manager;
+System.out.println("Roshan - Inside dispatchBlocks");
 		for(BlockWithLocations block : blocks.getBlocks()) {
+System.out.println("Roshan - Moving block - " + block.getBlock());
 			BlockInfo info = new BlockInfo();
 			info.setBlock(block.getBlock());
+System.out.print("Replica locations - ");
 			for(String name : block.getDatanodes()) {
-				DatanodeDescriptor node = (DatanodeDescriptor)cluster.getNode(name);
+System.out.print(name + " , ");
+				try {
+				//DatanodeDescriptor node = (DatanodeDescriptor)cluster.getNode(name);
+				DatanodeDescriptor node = nodeMap.get(name);
 				if(node != null) {
 					info.addLocation(node);
-				}
+				}}catch(Exception e) { 
+e.printStackTrace(System.out);
+System.out.println("Roshan - Exception!!!");
+}
 			}
-
+System.out.println("");
 			if(isGoodBlockCandidate(info)) {
 				dispatch(info);
+				movedBlockList.add(info.getBlock());
 			}
 		}
+                System.out.println("Roshan dispatched blocks");
+		return movedBlockList;
 	}
 
 	private void dispatch(BlockInfo info) {
+
+System.out.println("Moving " + info.getBlock().getBlockId() + "Source = " + sourceNode.getName() + " Target = " + targetNode.getName() + " Proxy = " + info.getProxySource().getName());
+
 		Socket sock = new Socket();
 		DataOutputStream out = null;
 		DataInputStream in = null;
