@@ -44,16 +44,13 @@ public class AutomaticBalancer {
 	private static final Log LOG = LogFactory.getLog(AutomaticBalancer.class.getName());
 	private DatanodeDescriptor sourceNode;
 	private DatanodeDescriptor targetNode;
-
-	//private static long BLOCK_SIZE_TO_FETCH = 64*1024*1024; //64MB
-
 	private NetworkTopology cluster = new NetworkTopology();
 	private BlockTokenSecretManager blockTokenSecretManager;
 	private NavigableMap<String, DatanodeDescriptor> nodeMap;
-	//private Collection<Block> recentInvalidateSets;
 	private Map<String, List<Block>> movedBlockList;
 
-
+	//The constructor sets the source node and the destination node whose loads are to be balanced, the cluster, a map which maps 
+	//the name of a datanode to the object of the datanode, and a list of blocks which have already been moved
 	public AutomaticBalancer(DatanodeDescriptor source, DatanodeDescriptor target, NetworkTopology cluster, 
 					NavigableMap<String, DatanodeDescriptor> map, Map<String, List<Block>> movedBlocks) {
 		this.sourceNode = source;
@@ -63,92 +60,48 @@ public class AutomaticBalancer {
 		this.movedBlockList = movedBlocks; 
 	}
 
-/*	private void getSourceBlocks() throws IOException{
-		srcBlockList =  new ArrayList<BlockInfo>();
-		BlockWithLocations[] blocks = namenode.getBlocks(sourceNode, BLOCK_SIZE_TO_FETCH).getBlocks();
-		for(int i =0;i<blocks.length;i++) {
-			BlockInfo info = new BlockInfo();
-			info.setBlock(blocks[i].getBlock());
-			for(String name : blocks[i].getDatanodes()) {
-				DatanodeDescriptor node = (DatanodeDescriptor)cluster.getNode(name);
-				if(node != null) {
-					info.addLocation(node);
-				}
-			}
-
-			if(isGoodBlockCandidate(info)) {
-				srcBlockList.add(info);
-			}
-		}
-	}
-*/
 	private boolean isGoodBlockCandidate(BlockInfo block) {
+		//Check whether this block is already scheduled to be moved
 		if(movedBlockList.get(sourceNode.getStorageID())!=null && movedBlockList.get(sourceNode.getStorageID()).contains(block)) {
-//System.out.println("Not good becuase in invalidate set");
 			return false;
 		}
 		//Check if block is already in target
 		boolean goodBlock = true;
 		if(block.inLocation(targetNode)) {
-//System.out.println("Not good because already in target node");
 			goodBlock = false;	
 		}
 		
 		if(goodBlock) {
+			//Check if any of the other replicas are located on the same rack. set proxy if there is.
+			//Otherwise the proxy is the source node itself 
 			block.setProxySource(sourceNode);
 			for(DatanodeDescriptor node : block.getLocations()) {
-			//Check if any of the other replicas are located on the same rack. set proxy if there is 
 				if(cluster.isOnSameRack(targetNode,node)) {
-//System.out.println("Found proxy node!!! " + node.getName());
 					block.setProxySource(node);
 					break;
 				}
 			}
 		}
 
-		/*boolean goodBlock = false;
-		if(cluster.isOnSameRack(sourceNode, targetNode)) {
-			goodBlock = true;
-		}
-		else {
-			for(DatanodeDescriptor node : block.getLocations()) {
-				//Check if any of the other replicas are located on the same rack. set proxy if there is 
-				if(cluster.isOnSameRack(targetNode,node)) {
-					block.setProxySource(node);
-					goodBlock = true;
-				}
-				//else good block if source is on the same rack as any of the other replicas
-				else if(cluster.isOnSameRack(sourceNode,node)) {
-					block.setProxySource(sourceNode);
-					goodBlock = true;
-				}
-			}
-		}*/
-
 		return goodBlock;
 	}
 
 	public void dispatchBlocks(BlocksWithLocations blocks, BlockTokenSecretManager manager) {
 		this.blockTokenSecretManager = manager;
-//System.out.println("Roshan - Inside dispatchBlocks");
 		for(BlockWithLocations block : blocks.getBlocks()) {
-//System.out.println("Roshan - Moving block - " + block.getBlock());
 			BlockInfo info = new BlockInfo();
 			info.setBlock(block.getBlock());
-//System.out.print("Replica locations - ");
+			//Store the locations of all the replicas for this block
 			for(String name : block.getDatanodes()) {
-//System.out.print(name + " , ");
 				try {
-				//DatanodeDescriptor node = (DatanodeDescriptor)cluster.getNode(name);
-				DatanodeDescriptor node = nodeMap.get(name);
-				if(node != null) {
-					info.addLocation(node);
-				}}catch(Exception e) { 
-e.printStackTrace(System.out);
-//System.out.println("Roshan - Exception!!!");
-}
+					DatanodeDescriptor node = nodeMap.get(name);
+					if(node != null) {
+						info.addLocation(node);
+					}
+				}catch(Exception e) { 
+					e.printStackTrace(System.out);
+				}
 			}
-//System.out.println("");
 			if(isGoodBlockCandidate(info)) {
 				dispatch(info);
 				if(movedBlockList.get(sourceNode.getStorageID())==null){
@@ -157,13 +110,9 @@ e.printStackTrace(System.out);
 				movedBlockList.get(sourceNode.getStorageID()).add(info.getBlock());
 			}
 		}
-                //System.out.println("Roshan dispatched blocks");
 	}
 
 	private void dispatch(BlockInfo info) {
-
-System.out.println("Moving " + info.getBlock().getBlockId() + "Source = " + sourceNode.getName() + " Target = " + targetNode.getName() + " Proxy = " + info.getProxySource().getName());
-
 		Socket sock = new Socket();
 		DataOutputStream out = null;
 		DataInputStream in = null;
@@ -203,8 +152,7 @@ System.out.println("Moving " + info.getBlock().getBlockId() + "Source = " + sour
 		out.writeByte(DataTransferProtocol.OP_REPLACE_BLOCK);
 		out.writeLong(info.getBlock().getBlockId());
 		out.writeLong(info.getBlock().getGenerationStamp());
-		Text.writeString(out, sourceNode.getStorageID()); //Avoid deleting block
-		//Text.writeString(out, "");
+		Text.writeString(out, sourceNode.getStorageID()); 
 		info.getProxySource().write(out);
 		
 		Token<BlockTokenIdentifier> accessToken = BlockTokenSecretManager.DUMMY_TOKEN;
