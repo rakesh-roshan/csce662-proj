@@ -2754,9 +2754,9 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
 	private DatanodeDescriptor highestNode, lowestNode;
 	public void run() {
           		try {
-                                System.out.println("Roshan going to sleep");
+                                //System.out.println("Roshan going to sleep");
           			Thread.sleep(120000);  // 120  seconds
-                                System.out.println("Roshan Wakeup");
+                                //System.out.println("Roshan Wakeup");
         		} catch (InterruptedException ie) {        		
                   }
 		while(fsRunning) {
@@ -2765,16 +2765,16 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean,
 				//blocksInTransition.clear();
 				boolean shouldRebalance = true;
 				while(shouldRebalance) {
-System.out.println("Roshan - In should rebalance");
+//System.out.println("Roshan - In should rebalance");
 					//Not enough nodes
 					if(sortedDataNodes.size() < 2) {
-System.out.println("Roshan - Not enough nodes");
+//System.out.println("Roshan - Not enough nodes");
 						shouldRebalance = false;
 					}				
 					else { 
 						//TODO check formula
                                                 double avgLoad = (double)capacityUsed/capacityTotal;
-System.out.println("Avg load = " + avgLoad);
+//System.out.println("Avg load = " + avgLoad);
 			  			synchronized(sortedDataNodes) {
 							highestNode = sortedDataNodes.first();
 							lowestNode = sortedDataNodes.last();
@@ -2786,10 +2786,10 @@ System.out.println("Avg load = " + avgLoad);
 							//if(!nodesInTransition.contains(highestNode)) {
 								//double highestLoad = (double)highestNode.getDfsUsed()/highestNode.getCapacity();
 								double highestLoad = getDatanodeScore(highestNode);
-System.out.println("Roshan - Highest node selected - " + highestNode.getName() + " Load = " + highestLoad);
+//System.out.println("Roshan - Highest node selected - " + highestNode.getName() + " Load = " + highestLoad);
 								//Check if there is any need for rebalancing
 								if((highestLoad - avgLoad) < THRESHOLD) {
-System.out.println("Roshan - highest too low to rebalance");
+//System.out.println("Roshan - highest too low to rebalance");
 									shouldRebalance = false;
 									break;
 								}
@@ -2801,10 +2801,10 @@ System.out.println("Roshan - highest too low to rebalance");
 										//if(!nodesInTransition.contains(lowestNode)) {
 											//double lowestLoad = (double)lowestNode.getDfsUsed()/lowestNode.getCapacity();
 											double lowestLoad = getDatanodeScore(lowestNode); 
-System.out.println("Roshan - Lowest Node selected - " + lowestNode.getName() + " Load = "+lowestLoad);
+//System.out.println("Roshan - Lowest Node selected - " + lowestNode.getName() + " Load = "+lowestLoad);
 											//Check if this node's load is low enough
 											if((avgLoad - lowestLoad) < THRESHOLD) {
-System.out.println("Roshan - lowest too high to rebalance ");
+//System.out.println("Roshan - lowest too high to rebalance ");
 												shouldRebalance = false;
 												break;
 											}
@@ -2813,7 +2813,7 @@ System.out.println("Roshan - lowest too high to rebalance ");
 												long sizeAvailInHigh = (long)Math.abs(((highestLoad - avgLoad) * highestNode.getCapacity()));
 												long sizeAvailInLow = (long)Math.abs(((avgLoad - lowestLoad) * lowestNode.getCapacity()));
 												long sizeToMove = Math.min(sizeAvailInHigh,sizeAvailInLow);	
-System.out.println("Size in highest = " + sizeAvailInHigh + " Size in lowest = "+sizeAvailInLow + " size to move = " + sizeToMove);
+//System.out.println("Size in highest = " + sizeAvailInHigh + " Size in lowest = "+sizeAvailInLow + " size to move = " + sizeToMove);
 												BlocksWithLocations blocks = getBlocks(highestNode, sizeToMove);
 
 												ExportedBlockKeys keys = getBlockKeys();
@@ -2859,9 +2859,9 @@ System.out.println("Size in highest = " + sizeAvailInHigh + " Size in lowest = "
 				e.printStackTrace(System.out);
 	   		}	 
           		try {
-                                System.out.println("Roshan going to sleep");
+                                //System.out.println("Roshan going to sleep");
           			Thread.sleep(20000);  // 120  seconds
-                                System.out.println("Roshan Wakeup");
+                                //System.out.println("Roshan Wakeup");
         		} catch (InterruptedException ie) {        		
 		}
 	}

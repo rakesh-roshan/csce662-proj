@@ -84,13 +84,13 @@ public class AutomaticBalancer {
 */
 	private boolean isGoodBlockCandidate(BlockInfo block) {
 		if(movedBlockList.get(sourceNode.getStorageID())!=null && movedBlockList.get(sourceNode.getStorageID()).contains(block)) {
-System.out.println("Not good becuase in invalidate set");
+//System.out.println("Not good becuase in invalidate set");
 			return false;
 		}
 		//Check if block is already in target
 		boolean goodBlock = true;
 		if(block.inLocation(targetNode)) {
-System.out.println("Not good because already in target node");
+//System.out.println("Not good because already in target node");
 			goodBlock = false;	
 		}
 		
@@ -99,7 +99,7 @@ System.out.println("Not good because already in target node");
 			for(DatanodeDescriptor node : block.getLocations()) {
 			//Check if any of the other replicas are located on the same rack. set proxy if there is 
 				if(cluster.isOnSameRack(targetNode,node)) {
-System.out.println("Found proxy node!!! " + node.getName());
+//System.out.println("Found proxy node!!! " + node.getName());
 					block.setProxySource(node);
 					break;
 				}
@@ -130,14 +130,14 @@ System.out.println("Found proxy node!!! " + node.getName());
 
 	public void dispatchBlocks(BlocksWithLocations blocks, BlockTokenSecretManager manager) {
 		this.blockTokenSecretManager = manager;
-System.out.println("Roshan - Inside dispatchBlocks");
+//System.out.println("Roshan - Inside dispatchBlocks");
 		for(BlockWithLocations block : blocks.getBlocks()) {
-System.out.println("Roshan - Moving block - " + block.getBlock());
+//System.out.println("Roshan - Moving block - " + block.getBlock());
 			BlockInfo info = new BlockInfo();
 			info.setBlock(block.getBlock());
-System.out.print("Replica locations - ");
+//System.out.print("Replica locations - ");
 			for(String name : block.getDatanodes()) {
-System.out.print(name + " , ");
+//System.out.print(name + " , ");
 				try {
 				//DatanodeDescriptor node = (DatanodeDescriptor)cluster.getNode(name);
 				DatanodeDescriptor node = nodeMap.get(name);
@@ -145,10 +145,10 @@ System.out.print(name + " , ");
 					info.addLocation(node);
 				}}catch(Exception e) { 
 e.printStackTrace(System.out);
-System.out.println("Roshan - Exception!!!");
+//System.out.println("Roshan - Exception!!!");
 }
 			}
-System.out.println("");
+//System.out.println("");
 			if(isGoodBlockCandidate(info)) {
 				dispatch(info);
 				if(movedBlockList.get(sourceNode.getStorageID())==null){
@@ -157,7 +157,7 @@ System.out.println("");
 				movedBlockList.get(sourceNode.getStorageID()).add(info.getBlock());
 			}
 		}
-                System.out.println("Roshan dispatched blocks");
+                //System.out.println("Roshan dispatched blocks");
 	}
 
 	private void dispatch(BlockInfo info) {
